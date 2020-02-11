@@ -31,6 +31,10 @@ type rcClient struct {
 
 func (c *rcClient) SendMessage(w controller.Message) {
 	c.send <- w
+
+	if w.Dispatch != nil {
+		c.responseDispatcher.Register(w.MessageID, w.Dispatch)
+	}
 }
 
 func (c *rcClient) DisconnectReceptorNetwork() {

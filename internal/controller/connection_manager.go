@@ -8,6 +8,8 @@ type Client interface {
 	SendMessage(Message)
 	Close()
 	DisconnectReceptorNetwork()
+	//SendMessage chan Work
+	//RegisterResponseHandler chan ResponseNotification
 }
 
 type ConnectionKey struct {

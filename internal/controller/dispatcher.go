@@ -9,8 +9,73 @@ import (
 	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/queue"
 
 	"github.com/RedHatInsights/platform-receptor-controller/internal/receptor/protocol"
+	"github.com/google/uuid"
 	kafka "github.com/segmentio/kafka-go"
 )
+
+type ResponseMessage struct {
+	Account      string      `json:"account"`
+	Sender       string      `json:"sender"`
+	MessageID    string      `json:"message_id"`
+	MessageType  string      `json:"message_type"`
+	Payload      interface{} `json:"payload"`
+	Code         int         `json:"code"`
+	InResponseTo string      `json:"in_response_to"`
+	Serial       int         `json:"serial"`
+}
+
+type ResponseNotification struct {
+	MessageID       uuid.UUID // Asynchronous Completion Token (ACT)
+	ResponseChannel chan ResponseMessage
+}
+
+type ChannelBasedResponseDispatcher struct {
+	Ctx           context.Context
+	Register      chan ResponseNotification
+	Dispatch      chan ResponseMessage
+	DispatchTable map[uuid.UUID]chan ResponseMessage
+}
+
+func (cbrd *ChannelBasedResponseDispatcher) Run() {
+	for {
+		log.Println("Channel Based Response Dispatcher - Waiting for something to process")
+
+		select {
+		/*
+			case <-cbrd.Ctx.Done():
+				log.Println("Channel Based Response Dispatcher...Context based done...leaving")
+
+				// FIXME:  Loop through table closing channels, calling cancel??
+
+				return
+		*/
+		case responseNotification := <-cbrd.Register:
+			log.Println("Websocket writer needs to send msg:", responseNotification)
+
+			// Add notifier to table
+
+			cbrd.DispatchTable[responseNotification.MessageID] = responseNotification.ResponseChannel
+
+		case responseMsgToDispatch := <-cbrd.Dispatch:
+			log.Println("Websocket writer needs to send msg:", responseMsgToDispatch)
+
+			// lookup message id...send Response down channel
+
+			messageID, err := uuid.Parse(responseMsgToDispatch.MessageID)
+			if err != nil {
+				log.Printf("Unable to parse uuid (%s) from response: %s", responseMsgToDispatch.MessageID, err)
+			}
+
+			responseChannel, exists := cbrd.DispatchTable[messageID]
+			if exists == false {
+				log.Println("Unable to locate response channel for ", responseMsgToDispatch.MessageID)
+				return
+			}
+
+			responseChannel <- responseMsgToDispatch
+		}
+	}
+}
 
 type ResponseDispatcherFactory struct {
 	writer *kafka.Writer
@@ -24,10 +89,21 @@ func NewResponseDispatcherFactory(writer *kafka.Writer) *ResponseDispatcherFacto
 
 func (fact *ResponseDispatcherFactory) NewDispatcher(account, nodeID string) *ResponseDispatcher {
 	log.Println("Creating a new response dispatcher")
+
+	cbrd := &ChannelBasedResponseDispatcher{
+		//Ctx:             req.Context(),  FIXME:
+		Register:      make(chan ResponseNotification),
+		Dispatch:      make(chan ResponseMessage),
+		DispatchTable: make(map[uuid.UUID]chan ResponseMessage),
+	}
+
+	go cbrd.Run()
+
 	return &ResponseDispatcher{
 		account: account,
 		nodeID:  nodeID,
 		writer:  fact.writer,
+		cbrd:    cbrd,
 	}
 }
 
@@ -35,24 +111,19 @@ type ResponseDispatcher struct {
 	account string
 	nodeID  string
 	writer  *kafka.Writer
+	cbrd    *ChannelBasedResponseDispatcher
 }
 
 func (rd *ResponseDispatcher) GetKey() string {
 	return fmt.Sprintf("%s:%s", rd.account, rd.nodeID)
 }
 
-func (rd *ResponseDispatcher) DispatchResponse(ctx context.Context, m protocol.Message, receptorID string) error {
-	type ResponseMessage struct {
-		Account      string      `json:"account"`
-		Sender       string      `json:"sender"`
-		MessageType  string      `json:"message_type"`
-		MessageID    string      `json:"message_id"`
-		Payload      interface{} `json:"payload"`
-		Code         int         `json:"code"`
-		InResponseTo string      `json:"in_response_to"`
-		Serial       int         `json:"serial"`
-	}
+func (rd *ResponseDispatcher) Register(messageID uuid.UUID, notifyChan chan ResponseMessage) error {
+	rd.cbrd.Register <- ResponseNotification{messageID, notifyChan}
+	return nil
+}
 
+func (rd *ResponseDispatcher) DispatchResponse(ctx context.Context, m protocol.Message, receptorID string) error {
 	if m.Type() != protocol.PayloadMessageType {
 		log.Printf("Unable to dispatch message (type: %d): %s", m.Type(), m)
 		return nil
@@ -88,6 +159,8 @@ func (rd *ResponseDispatcher) DispatchResponse(ctx context.Context, m protocol.M
 		log.Println("JSON marshal of ResponseMessage failed, err:", err)
 		return nil
 	}
+
+	rd.cbrd.Dispatch <- responseMessage
 
 	rd.writer.WriteMessages(ctx,
 		kafka.Message{

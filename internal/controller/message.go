@@ -10,4 +10,5 @@ type Message struct {
 	RouteList []string
 	Payload   interface{}
 	Directive string
+	Dispatch  chan ResponseMessage
 }

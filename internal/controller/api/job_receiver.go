@@ -97,11 +97,14 @@ func (jr *JobReceiver) handleJob() http.HandlerFunc {
 
 		log.Println("job request:", jobRequest)
 
+		dispatchChan := make(chan controller.ResponseMessage)
+
 		workRequest := controller.Message{MessageID: jobID,
 			Recipient: jobRequest.Recipient,
 			RouteList: []string{jobRequest.Recipient},
 			Payload:   jobRequest.Payload,
-			Directive: jobRequest.Directive}
+			Directive: jobRequest.Directive,
+			Dispatch:  dispatchChan}
 
 		client.SendMessage(workRequest)
 
@@ -115,9 +118,20 @@ func (jr *JobReceiver) handleJob() http.HandlerFunc {
 				})
 		*/
 
+		log.Println("Waiting for response...")
+
+		response := <-dispatchChan
+
+		log.Println("NEED SOME WAY TO CANCEL THE NOTIFICATION")
+
+		log.Println("Got a response:", response)
+
+		log.Println("job response:", jobResponse)
+
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(http.StatusCreated)
-		if err := json.NewEncoder(w).Encode(jobResponse); err != nil {
+		//if err := json.NewEncoder(w).Encode(jobResponse); err != nil {
+		if err := json.NewEncoder(w).Encode(response); err != nil {
 			panic(err)
 		}
 	}
