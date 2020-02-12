@@ -23,8 +23,6 @@ func main() {
 
 	cm := c.NewConnectionManager()
 	mgmtMux := mux.NewRouter()
-	mgmtServer := api.NewManagementServer(cm, mgmtMux)
-	mgmtServer.Routes()
 
 	kafkaProducerConfig := queue.GetProducer()
 	kafkaProducerConfig.Topic = "platform.receptor-controller.jobs"
@@ -39,6 +37,9 @@ func main() {
 	messageDispatcher := &c.MessageDispatcher{db, kw}
 	jr := api.NewJobReceiver(cm, mgmtMux, messageDispatcher)
 	jr.Routes()
+
+	mgmtServer := api.NewManagementServer(cm, mgmtMux, messageDispatcher)
+	mgmtServer.Routes()
 
 	go func() {
 		log.Println("Starting management web server on", *mgmtAddr)

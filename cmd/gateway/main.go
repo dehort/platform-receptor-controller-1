@@ -51,10 +51,11 @@ func main() {
 	apiSpecServer := api.NewApiSpecServer(apiMux, OPENAPI_SPEC_FILE)
 	apiSpecServer.Routes()
 
-	mgmtServer := api.NewManagementServer(cm, apiMux)
+	messageDispatcher := &c.MessageDispatcher{db, kw}
+
+	mgmtServer := api.NewManagementServer(cm, apiMux, messageDispatcher)
 	mgmtServer.Routes()
 
-	messageDispatcher := &c.MessageDispatcher{db, kw}
 	jr := api.NewJobReceiver(cm, apiMux, messageDispatcher)
 	jr.Routes()
 
