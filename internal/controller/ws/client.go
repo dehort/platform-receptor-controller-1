@@ -211,7 +211,7 @@ func (c *rcClient) consume(ctx context.Context) {
 			string(m.Key),
 			string(m.Value))
 
-		targetKey := fmt.Sprintf("%s:%s", c.account, "node-b" /*c.node_id*/)
+		targetKey := fmt.Sprintf("%s:%s", c.account, c.node_id)
 		log.Println("FIXME!!!!!")
 		log.Println("*** looking for key that matches: ", targetKey)
 		log.Println("*** found key: ", string(m.Key))
