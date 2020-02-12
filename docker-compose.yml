@@ -2,6 +2,15 @@
 
 version: "3"
 services:
+  db:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: fifi
+      POSTGRES_USER: fifi
+      POSTGRES_DB: fifi
+    ports:
+      - "5432:5432"
   zookeeper:
     image: confluentinc/cp-zookeeper
     environment:

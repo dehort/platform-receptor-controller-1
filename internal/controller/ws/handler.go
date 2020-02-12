@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 
@@ -21,14 +22,16 @@ type ReceptorController struct {
 	router                    *mux.Router
 	config                    *WebSocketConfig
 	responseDispatcherFactory *controller.ResponseDispatcherFactory
+	database                  *sql.DB
 }
 
-func NewReceptorController(wsc *WebSocketConfig, cm *controller.ConnectionManager, r *mux.Router, rd *controller.ResponseDispatcherFactory) *ReceptorController {
+func NewReceptorController(wsc *WebSocketConfig, cm *controller.ConnectionManager, r *mux.Router, rd *controller.ResponseDispatcherFactory, db *sql.DB) *ReceptorController {
 	return &ReceptorController{
 		connectionMgr:             cm,
 		router:                    r,
 		config:                    wsc,
 		responseDispatcherFactory: rd,
+		database:                  db,
 	}
 }
 
@@ -56,10 +59,11 @@ func (rc *ReceptorController) handleWebSocket() http.HandlerFunc {
 		log.Println("All the headers: ", req.Header)
 
 		client := &rcClient{
-			config:  rc.config,
-			account: rhIdentity.Identity.AccountNumber,
-			socket:  socket,
-			send:    make(chan controller.Work, messageBufferSize),
+			config:   rc.config,
+			account:  rhIdentity.Identity.AccountNumber,
+			socket:   socket,
+			send:     make(chan controller.Work, messageBufferSize),
+			database: rc.database,
 		}
 
 		client.responseDispatcher = rc.responseDispatcherFactory.NewDispatcher(client.account, client.node_id)

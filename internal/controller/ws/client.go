@@ -2,11 +2,15 @@ package ws
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/RedHatInsights/platform-receptor-controller/internal/controller"
+	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/models"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/queue"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/receptor/protocol"
 	"github.com/gorilla/websocket"
@@ -26,6 +30,8 @@ type rcClient struct {
 	cancel context.CancelFunc
 
 	responseDispatcher *controller.ResponseDispatcher
+
+	database *sql.DB
 
 	config *WebSocketConfig
 }
@@ -52,7 +58,7 @@ func (c *rcClient) read(ctx context.Context) {
 	}()
 
 	go c.write(ctx)
-	// go c.consume(ctx)
+	go c.consume(ctx)
 
 	c.configurePongHandler()
 
@@ -75,6 +81,20 @@ func (c *rcClient) read(ctx context.Context) {
 
 		log.Printf("Websocket reader message: %+v\n", message)
 		log.Println("Websocket reader message type:", message.Type())
+
+		if message.Type() == protocol.RouteTableMessageType {
+			conn := models.Connection{
+				AccountNumber: c.account,
+				NodeID:        c.node_id,
+				RouteTable:    "RoutingTable",
+				PodName:       "pod-1.platform-ci.svc.cluster"}
+
+			err := models.SaveConnection(c.database, conn)
+			if err != nil {
+				log.Println("WebSocket reader - error saving connection metadata: ", err)
+				return
+			}
+		}
 
 		c.responseDispatcher.Dispatch(ctx, message, c.config.ReceptorControllerNodeId)
 	}
@@ -191,9 +211,19 @@ func (c *rcClient) consume(ctx context.Context) {
 			string(m.Key),
 			string(m.Value))
 
-		if string(m.Key) == c.account {
+		targetKey := fmt.Sprintf("%s:%s", c.account, "node-b" /*c.node_id*/)
+		log.Println("FIXME!!!!!")
+		log.Println("*** looking for key that matches: ", targetKey)
+		log.Println("*** found key: ", string(m.Key))
+
+		if string(m.Key) == targetKey {
 			// FIXME:
-			w := controller.Work{}
+			var w controller.Work
+			err := json.Unmarshal(m.Value, &w)
+			if err != nil {
+				log.Println("Unable to unmarshal work from kafka queue")
+				continue
+			}
 			c.SendWork(w)
 		} else {
 			log.Println("Kafka job reader - received message but did not send. Account number not found.")

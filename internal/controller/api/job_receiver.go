@@ -14,21 +14,19 @@ import (
 
 	"github.com/RedHatInsights/platform-receptor-controller/internal/controller"
 	"github.com/redhatinsights/platform-go-middlewares/identity"
-
-	kafka "github.com/segmentio/kafka-go"
 )
 
 type JobReceiver struct {
-	connectionMgr *controller.ConnectionManager
-	router        *mux.Router
-	producer      *kafka.Writer
+	connectionMgr     *controller.ConnectionManager
+	router            *mux.Router
+	messageDispatcher *controller.MessageDispatcher
 }
 
-func NewJobReceiver(cm *controller.ConnectionManager, r *mux.Router, kw *kafka.Writer) *JobReceiver {
+func NewJobReceiver(cm *controller.ConnectionManager, r *mux.Router, md *controller.MessageDispatcher) *JobReceiver {
 	return &JobReceiver{
-		connectionMgr: cm,
-		router:        r,
-		producer:      kw,
+		connectionMgr:     cm,
+		router:            r,
+		messageDispatcher: md,
 	}
 }
 
@@ -76,16 +74,19 @@ func (jr *JobReceiver) handleJob() http.HandlerFunc {
 		}
 
 		log.Println("jobRequest:", jobRequest)
-		// dispatch job via client's sendwork
-		// not using client's sendwork, but leaving this code in to verify connection?
-		var client controller.Client
-		client = jr.connectionMgr.GetConnection(jobRequest.Account, jobRequest.Recipient)
-		if client == nil {
-			// FIXME: the connection to the client was not available
-			log.Println("No connection to the customer...")
-			w.WriteHeader(http.StatusNotFound)
-			return
-		}
+
+		/*
+			// dispatch job via client's sendwork
+			// not using client's sendwork, but leaving this code in to verify connection?
+			var client controller.Client
+			client = jr.connectionMgr.GetConnection(jobRequest.Account, jobRequest.Recipient)
+			if client == nil {
+				// FIXME: the connection to the client was not available
+				log.Println("No connection to the customer...")
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+		*/
 
 		jobID, err := uuid.NewRandom()
 		if err != nil {
@@ -103,17 +104,11 @@ func (jr *JobReceiver) handleJob() http.HandlerFunc {
 			Payload:   jobRequest.Payload,
 			Directive: jobRequest.Directive}
 
-		client.SendWork(workRequest)
-
-		/*
-			// dispatch job via kafka queue
-			jobRequestJSON, err := json.Marshal(jobRequest)
-			jr.producer.WriteMessages(context.Background(),
-				kafka.Message{
-					Key:   []byte(jobRequest.Account),
-					Value: []byte(jobRequestJSON),
-				})
-		*/
+		err = jr.messageDispatcher.SendMessage(jobRequest.Account, jobRequest.Recipient, workRequest)
+		if err != nil {
+			log.Println("ERROR!!   ", err)
+			panic(err)
+		}
 
 		w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 		w.WriteHeader(http.StatusCreated)

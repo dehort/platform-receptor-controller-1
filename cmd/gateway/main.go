@@ -11,6 +11,7 @@ import (
 
 	c "github.com/RedHatInsights/platform-receptor-controller/internal/controller"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/api"
+	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/models"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/ws"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/queue"
 
@@ -33,10 +34,16 @@ func main() {
 
 	wsMux := mux.NewRouter()
 
+	db, err := models.NewDB("localhost:5432")
+	if err != nil {
+		log.Println("Failed to connect to DB:", err)
+		return
+	}
+
 	cm := c.NewConnectionManager()
 	kw := queue.StartProducer(queue.GetProducer())
 	d := c.NewResponseDispatcherFactory(kw)
-	rc := ws.NewReceptorController(wsConfig, cm, wsMux, d)
+	rc := ws.NewReceptorController(wsConfig, cm, wsMux, d, db)
 	rc.Routes()
 
 	apiMux := mux.NewRouter()
@@ -47,7 +54,8 @@ func main() {
 	mgmtServer := api.NewManagementServer(cm, apiMux)
 	mgmtServer.Routes()
 
-	jr := api.NewJobReceiver(cm, apiMux, kw)
+	messageDispatcher := &c.MessageDispatcher{db, kw}
+	jr := api.NewJobReceiver(cm, apiMux, messageDispatcher)
 	jr.Routes()
 
 	go func() {

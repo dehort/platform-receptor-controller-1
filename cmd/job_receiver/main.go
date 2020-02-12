@@ -11,6 +11,7 @@ import (
 
 	c "github.com/RedHatInsights/platform-receptor-controller/internal/controller"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/api"
+	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/models"
 
 	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/queue"
 	"github.com/gorilla/mux"
@@ -25,9 +26,18 @@ func main() {
 	mgmtServer := api.NewManagementServer(cm, mgmtMux)
 	mgmtServer.Routes()
 
-	kw := queue.StartProducer(queue.GetProducer())
+	kafkaProducerConfig := queue.GetProducer()
+	kafkaProducerConfig.Topic = "platform.receptor-controller.jobs"
+	kw := queue.StartProducer(kafkaProducerConfig)
 
-	jr := api.NewJobReceiver(cm, mgmtMux, kw)
+	db, err := models.NewDB("localhost:5432")
+	if err != nil {
+		log.Println("Failed to connect to DB:", err)
+		return
+	}
+
+	messageDispatcher := &c.MessageDispatcher{db, kw}
+	jr := api.NewJobReceiver(cm, mgmtMux, messageDispatcher)
 	jr.Routes()
 
 	go func() {
