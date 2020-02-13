@@ -26,14 +26,21 @@ func (md *MessageDispatcher) SendMessage(accountNumber string, nodeID string, ms
 	log.Println("connections:", connections)
 
 	// find the best route
+	route, err := CalculateRoute(connections, nodeID)
+	if err != nil {
+		return err
+	}
 
 	// send the message
+
+	msgKey := []byte(fmt.Sprintf("%s:%s", accountNumber, route.FirstHop))
+	log.Println("msgKey:", string(msgKey))
 
 	// dispatch job via kafka queue
 	messageJSON, err := json.Marshal(msg)
 	md.KafkaWriter.WriteMessages(context.Background(), // FIXME: context??!?!
 		kafka.Message{
-			Key:   []byte(fmt.Sprintf("%s:%s", accountNumber, nodeID)),
+			Key:   msgKey,
 			Value: []byte(messageJSON),
 		})
 

@@ -13,7 +13,7 @@ type Connection struct {
 }
 
 func AllConnectionsPerAccount(db *sql.DB, accountNumber string) ([]*Connection, error) {
-	rows, err := db.Query("SELECT * FROM connections ") // WHERE AccountNumber = ?", accountNumber)
+	rows, err := db.Query("SELECT * FROM connections WHERE account_number = $1", accountNumber)
 	if err != nil {
 		log.Println("Query error! ", err)
 		return nil, err
@@ -24,10 +24,11 @@ func AllConnectionsPerAccount(db *sql.DB, accountNumber string) ([]*Connection, 
 	for rows.Next() {
 		conn := new(Connection)
 		var id int
-		err := rows.Scan(&id, &conn.AccountNumber, &conn.NodeID, &conn.PodName, &conn.RouteTable)
+		err := rows.Scan(&id, &conn.AccountNumber, &conn.NodeID, &conn.RouteTable, &conn.PodName)
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("conn:%+v\n", conn)
 		connections = append(connections, conn)
 	}
 
