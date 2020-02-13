@@ -178,7 +178,7 @@ func (s *ManagementServer) handlePing() http.HandlerFunc {
 
 		workRequest := controller.Work{MessageID: msgID,
 			Recipient: connID.NodeID,
-			RouteList: []string{"node-b", "node-a"},
+			RouteList: []string{connID.NodeID},
 			Payload:   time.Now().String(),
 			Directive: "receptor:ping"}
 
