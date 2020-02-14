@@ -184,7 +184,10 @@ func (c *rcClient) configurePingTicker() *time.Ticker {
 }
 
 func (c *rcClient) consume(ctx context.Context) {
-	r := queue.StartConsumer(queue.GetConsumer())
+
+	queueConfig := queue.GetConsumer()
+	queueConfig.GroupID = fmt.Sprintf("%s:%s", c.account, c.node_id)
+	r := queue.StartConsumer(queueConfig)
 
 	defer func() {
 		err := r.Close()
@@ -196,7 +199,7 @@ func (c *rcClient) consume(ctx context.Context) {
 	}()
 
 	for {
-		log.Printf("Kafka job reader - waiting on a message from kafka...")
+		log.Printf("**** Kafka job reader (%s) - waiting on a message from kafka...", c.node_id)
 		m, err := r.ReadMessage(ctx)
 		if err != nil {
 			// FIXME:  do we need to call cancel here??
