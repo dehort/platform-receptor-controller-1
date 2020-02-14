@@ -3,6 +3,7 @@ package queue
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -19,6 +20,9 @@ const (
 	RESPONSES_TOPIC = "Kafka_Responses_Topic"
 
 	DEFAULT_BROKER_ADDRESS = "kafka:29092"
+
+	BATCH_SIZE    = "Kafka_Producer_Batch_Size"
+	BATCH_TIMEOUT = "Kafka_Producer_Batch_Timeout"
 )
 
 type ConsumerConfig struct {
@@ -38,14 +42,18 @@ func (cc *ConsumerConfig) String() string {
 }
 
 type ProducerConfig struct {
-	Brokers []string
-	Topic   string
+	Brokers      []string
+	Topic        string
+	BatchSize    int
+	BatchTimeout time.Duration
 }
 
 func (pc *ProducerConfig) String() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s: %s\n", BROKERS, pc.Brokers)
-	fmt.Fprintf(&b, "%s: %s", RESPONSES_TOPIC, pc.Topic)
+	fmt.Fprintf(&b, "%s: %s\n", RESPONSES_TOPIC, pc.Topic)
+	fmt.Fprintf(&b, "%s: %d\n", BATCH_SIZE, pc.BatchSize)
+	fmt.Fprintf(&b, "%s: %s", BATCH_TIMEOUT, pc.BatchTimeout)
 	return b.String()
 }
 
@@ -70,11 +78,15 @@ func GetProducer() *ProducerConfig {
 	options := viper.New()
 	options.SetDefault(BROKERS, []string{DEFAULT_BROKER_ADDRESS})
 	options.SetDefault(RESPONSES_TOPIC, "platform.receptor-controller.responses")
+	options.SetDefault(BATCH_SIZE, 0)
+	options.SetDefault(BATCH_TIMEOUT, 0)
 	options.SetEnvPrefix(ENV_PREFIX)
 	options.AutomaticEnv()
 
 	return &ProducerConfig{
-		Brokers: options.GetStringSlice(BROKERS),
-		Topic:   options.GetString(RESPONSES_TOPIC),
+		Brokers:      options.GetStringSlice(BROKERS),
+		Topic:        options.GetString(RESPONSES_TOPIC),
+		BatchSize:    options.GetInt(BATCH_SIZE),
+		BatchTimeout: options.GetDuration(BATCH_TIMEOUT) * time.Second,
 	}
 }
