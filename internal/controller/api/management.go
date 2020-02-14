@@ -218,7 +218,7 @@ func (s *ManagementServer) handlePing() http.HandlerFunc {
 func consume(ctx context.Context, msgID uuid.UUID, response chan []byte) {
 	kafkaConsumerConfig := queue.GetConsumer()
 	kafkaConsumerConfig.Topic = "platform.receptor-controller.responses"
-	kafkaConsumerConfig.GroupID = "turd ferguson"
+	kafkaConsumerConfig.GroupID = msgID.String()
 	r := queue.StartConsumer(kafkaConsumerConfig)
 
 	defer func() {
