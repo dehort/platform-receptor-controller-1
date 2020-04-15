@@ -21,26 +21,22 @@ services:
       - KAFKA_BROKER_ID=1
       - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1
       - KAFKA_ZOOKEEPER_CONNECT=zookeeper:32181
+      - KAFKA_MAX_REQUEST_SIZE=1048888
   gateway:
-    build:
-      context: ./
-      dockerfile: ./cmd/gateway/Dockerfile
-    image: platform-receptor-controller-gateway
+    image: localhost/receptor-gateway
+    deploy:
+      resources:
+        limits:
+            cpus: '0.50'
+            memory: 500M
+        reservations:
+            cpus: '0.25'
+            memory: 100M
+    command: ./ws-gateway -mgmtAddr :9091 -wsAddr :8081
     ports:
-      - 8080:8080 # websocket gateway
-      - 9090:9090 # gateway management server
+      - 8081:8081 # websocket gateway
+      - 9091:9091 # gateway management server
     environment:
-      - PLACEHOLDER_ENV_VAR=placeholder_env_var
-    depends_on:
-      - kafka
-  job-receiver:
-    build:
-      context: ./
-      dockerfile: ./cmd/job_receiver/Dockerfile
-    image: platform-receptor-controller-job-receiver
-    ports:
-      - 8081:8081 # job_receiver management server
-    environment:
-      - PLACEHOLDER_ENV_VAR=placeholder_env_var
+      - RECEPTOR_CONTROLLER_KAFKA_RESPONSES_BATCH_BYTES=800000
     depends_on:
       - kafka
