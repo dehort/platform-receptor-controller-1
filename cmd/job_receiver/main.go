@@ -13,6 +13,7 @@ import (
 	c "github.com/RedHatInsights/platform-receptor-controller/internal/controller"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/api"
 
+	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/logger"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/queue"
 	"github.com/gorilla/mux"
 )
@@ -21,7 +22,12 @@ func main() {
 	var mgmtAddr = flag.String("mgmtAddr", ":8081", "Hostname:port of the management server")
 	flag.Parse()
 
+	logger.InitLogger()
+
+	logger.Log.Info("Starting Receptor-Controller Job-Receiver service")
+
 	cfg := config.GetConfig()
+	logger.Log.Info("Receptor Controller configuration:\n", cfg)
 
 	cm := c.NewConnectionManager()
 	mgmtMux := mux.NewRouter()

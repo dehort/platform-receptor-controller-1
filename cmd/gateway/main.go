@@ -45,7 +45,7 @@ func main() {
 
 	logger.InitLogger()
 
-	logger.Log.Info("Starting Receptor-Controller service")
+	logger.Log.Info("Starting Receptor-Controller Gateway service")
 
 	cfg := config.GetConfig()
 	logger.Log.Info("Receptor Controller configuration:\n", cfg)
