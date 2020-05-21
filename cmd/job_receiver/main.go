@@ -29,7 +29,7 @@ func main() {
 	cfg := config.GetConfig()
 	logger.Log.Info("Receptor Controller configuration:\n", cfg)
 
-	cm := c.NewConnectionManager()
+	cm := &c.ConnectionManagerHttpProxy{}
 	mgmtMux := mux.NewRouter()
 	mgmtServer := api.NewManagementServer(cm, mgmtMux, cfg)
 	mgmtServer.Routes()
