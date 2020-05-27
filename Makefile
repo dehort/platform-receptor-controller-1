@@ -10,7 +10,8 @@ COVERAGE_HTML=coverage.html
 
 build:
 	go build -o $(GATEWAY_BINARY) cmd/gateway/main.go
-	go build -o $(JOB_RECEIVER_BINARY) cmd/job_receiver/main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -a -installsuffix cgo -ldflags '-s' -o $(JOB_RECEIVER_BINARY) cmd/job_receiver/main.go
+	
 
 deps:
 	go get -u golang.org/x/lint/golint
