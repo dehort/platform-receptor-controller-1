@@ -1,4 +1,4 @@
-package controller
+package api
 
 import (
 	"bytes"
@@ -16,17 +16,6 @@ type ReceptorHttpProxy struct {
 	Url string
 }
 
-type jobRequest struct {
-	Account   string      `json:"account" validate:"required"`
-	Recipient string      `json:"recipient" validate:"required"`
-	Payload   interface{} `json:"payload" validate:"required"`
-	Directive string      `json:"directive" validate:"required"`
-}
-
-type jobResponse struct {
-	JobID string `json:"id"`
-}
-
 func (rhp *ReceptorHttpProxy) SendMessage(ctx context.Context, accountNumber string, recipient string, route []string, payload interface{}, directive string) (*uuid.UUID, error) {
 	logger.Log.Printf("SendMessage")
 
@@ -36,6 +25,7 @@ func (rhp *ReceptorHttpProxy) SendMessage(ctx context.Context, accountNumber str
 
 	req, err := http.NewRequest(http.MethodPost, rhp.Url, bytes.NewBuffer(jsonStr))
 	req.Header.Set("Content-Type", "appliation/json")
+	// FIXME:  this should be the PSK
 	req.Header.Set("x-rh-identity", "eyJpZGVudGl0eSI6IHsiYWNjb3VudF9udW1iZXIiOiAiMDAwMDAwMSIsICJpbnRlcm5hbCI6IHsib3JnX2lkIjogIjAwMDAwMSJ9fX0=")
 
 	client := &http.Client{}

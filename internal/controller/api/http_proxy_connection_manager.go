@@ -1,6 +1,7 @@
-package controller
+package api
 
 import (
+	"github.com/RedHatInsights/platform-receptor-controller/internal/controller"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/logger"
 	"os"
 )
@@ -8,7 +9,7 @@ import (
 type ConnectionManagerHttpProxy struct {
 }
 
-func (cm *ConnectionManagerHttpProxy) Register(account string, node_id string, client Receptor) error {
+func (cm *ConnectionManagerHttpProxy) Register(account string, node_id string, client controller.Receptor) error {
 	logger.Log.Printf("FIXME: (NO-OP) Registered a connection (%s, %s)\n", account, node_id)
 	return nil
 }
@@ -17,8 +18,8 @@ func (cm *ConnectionManagerHttpProxy) Unregister(account string, node_id string)
 	logger.Log.Printf("FIXME: (NO-OP) Unregistered a connection (%s, %s)\n", account, node_id)
 }
 
-func (cm *ConnectionManagerHttpProxy) GetConnection(account string, node_id string) Receptor {
-	var conn Receptor
+func (cm *ConnectionManagerHttpProxy) GetConnection(account string, node_id string) controller.Receptor {
+	var conn controller.Receptor
 
 	var url string
 	url = os.Getenv("GATEWAY_URL")
@@ -32,9 +33,9 @@ func (cm *ConnectionManagerHttpProxy) GetConnection(account string, node_id stri
 	return conn
 }
 
-func (cm *ConnectionManagerHttpProxy) GetConnectionsByAccount(account string) map[string]Receptor {
+func (cm *ConnectionManagerHttpProxy) GetConnectionsByAccount(account string) map[string]controller.Receptor {
 
-	connectionsPerAccount := make(map[string]Receptor)
+	connectionsPerAccount := make(map[string]controller.Receptor)
 
 	nodeId := "fred"
 	connectionsPerAccount[nodeId] = cm.GetConnection("0000001", nodeId)
@@ -42,9 +43,9 @@ func (cm *ConnectionManagerHttpProxy) GetConnectionsByAccount(account string) ma
 	return connectionsPerAccount
 }
 
-func (cm *ConnectionManagerHttpProxy) GetAllConnections() map[string]map[string]Receptor {
+func (cm *ConnectionManagerHttpProxy) GetAllConnections() map[string]map[string]controller.Receptor {
 
-	connectionMap := make(map[string]map[string]Receptor)
+	connectionMap := make(map[string]map[string]controller.Receptor)
 
 	accountNumber := "0000001"
 

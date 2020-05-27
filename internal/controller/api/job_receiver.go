@@ -22,6 +22,17 @@ type JobReceiver struct {
 	config        *config.Config
 }
 
+type jobRequest struct {
+	Account   string      `json:"account" validate:"required"`
+	Recipient string      `json:"recipient" validate:"required"`
+	Payload   interface{} `json:"payload" validate:"required"`
+	Directive string      `json:"directive" validate:"required"`
+}
+
+type jobResponse struct {
+	JobID string `json:"id"`
+}
+
 func NewJobReceiver(cm controller.ConnectionManager, r *mux.Router, kw *kafka.Writer, cfg *config.Config) *JobReceiver {
 	return &JobReceiver{
 		connectionMgr: cm,
@@ -40,17 +51,6 @@ func (jr *JobReceiver) Routes() {
 
 func (jr *JobReceiver) handleJob() http.HandlerFunc {
 
-	type JobRequest struct {
-		Account   string      `json:"account" validate:"required"`
-		Recipient string      `json:"recipient" validate:"required"`
-		Payload   interface{} `json:"payload" validate:"required"`
-		Directive string      `json:"directive" validate:"required"`
-	}
-
-	type JobResponse struct {
-		JobID string `json:"id"`
-	}
-
 	return func(w http.ResponseWriter, req *http.Request) {
 
 		principal, _ := middlewares.GetPrincipal(req.Context())
@@ -59,7 +59,7 @@ func (jr *JobReceiver) handleJob() http.HandlerFunc {
 			"account":    principal.GetAccount(),
 			"request_id": requestId})
 
-		var jobRequest JobRequest
+		var jobRequest jobRequest
 
 		body := http.MaxBytesReader(w, req.Body, 1048576)
 
@@ -106,7 +106,7 @@ func (jr *JobReceiver) handleJob() http.HandlerFunc {
 
 		logger.WithFields(logrus.Fields{"message_id": jobID}).Info("Message sent")
 
-		jobResponse := JobResponse{jobID.String()}
+		jobResponse := jobResponse{jobID.String()}
 
 		writeJSONResponse(w, http.StatusCreated, jobResponse)
 	}

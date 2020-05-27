@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/RedHatInsights/platform-receptor-controller/internal/config"
-	c "github.com/RedHatInsights/platform-receptor-controller/internal/controller"
 	"github.com/RedHatInsights/platform-receptor-controller/internal/controller/api"
 
 	"github.com/RedHatInsights/platform-receptor-controller/internal/platform/logger"
@@ -29,7 +28,7 @@ func main() {
 	cfg := config.GetConfig()
 	logger.Log.Info("Receptor Controller configuration:\n", cfg)
 
-	cm := &c.ConnectionManagerHttpProxy{}
+	cm := &api.ConnectionManagerHttpProxy{}
 	mgmtMux := mux.NewRouter()
 	mgmtServer := api.NewManagementServer(cm, mgmtMux, cfg)
 	mgmtServer.Routes()
