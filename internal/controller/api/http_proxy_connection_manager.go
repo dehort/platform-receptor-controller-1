@@ -28,7 +28,7 @@ func (cm *ConnectionManagerHttpProxy) GetConnection(account string, node_id stri
 	}
 	logger.Log.Printf("GATEWAY_URL: %s\n", url)
 
-	conn = &ReceptorHttpProxy{Url: url}
+	conn = &ReceptorHttpProxy{Url: url, AccountNumber: account, NodeID: node_id}
 
 	return conn
 }
