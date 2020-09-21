@@ -14,6 +14,7 @@ build:
 	go build -o response_consumer cmd/response_consumer/main.go
 	go build -o connection_util cmd/connection_util/main.go
 	go build -o connection_cleaner cmd/connection_cleaner/main.go
+	go build -o receptor-controller-client cmd/client/client.go
 
 deps:
 	go get -u golang.org/x/lint/golint
