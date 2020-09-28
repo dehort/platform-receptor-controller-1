@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -10,22 +11,33 @@ import (
 	"strings"
 	//"time"
 	//"encoding/base64"
+	"syscall"
 
 	"github.com/RedHatInsights/platform-receptor-controller/internal/receptor/protocol"
 	"github.com/gorilla/websocket"
 )
 
 func readSocket(c *websocket.Conn, mt protocol.NetworkMessageType) protocol.Message {
-	mtype, r, _ := c.NextReader()
-	fmt.Println("mtype:", mtype)
-	//Expect(mtype).Should(Equal(websocket.BinaryMessage))
+	for {
+		mtype, r, err := c.NextReader()
+		fmt.Println("mtype:", mtype)
+		if err != nil {
+			fmt.Println("NextReader err:", err)
+			return nil
+		}
+		//Expect(mtype).Should(Equal(websocket.BinaryMessage))
 
-	fmt.Println("TestClient reading response from receptor-controller")
-	m, _ := protocol.ReadMessage(r)
-	fmt.Println("m:", m)
-	//Expect(m.Type()).Should(Equal(mt))
+		fmt.Println("TestClient reading response from receptor-controller")
+		m, err := protocol.ReadMessage(r)
+		if err != nil {
+			fmt.Println("ReadMessage err:", err)
+			return nil
+		}
 
-	return m
+		fmt.Println("m:", m)
+		//Expect(m.Type()).Should(Equal(mt))
+	}
+	return nil
 }
 
 func writeSocket(c *websocket.Conn, message protocol.Message) {
@@ -61,10 +73,13 @@ var headers = map[string][]string{
 }
 
 func main() {
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
 	flag.Var(&headerFlags, "header", "header name:value")
+	connectionCount := flag.Int("connection_count", 1, "number of connections to create")
 	flag.Parse()
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
 
 	u, err := url.Parse(*targetUrl)
 	if err != nil {
@@ -77,18 +92,30 @@ func main() {
 		headers[nameValuePair[0]] = []string{nameValuePair[1]}
 	}
 
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
-	log.Println("connected")
-	if err != nil {
-		log.Fatal("dial:", err)
-		return
+	// FIXME: don't ignore ctx
+	_, cancel := context.WithCancel(context.Background())
+
+	for i := 0; i < *connectionCount; i++ {
+		go func(i int) {
+			c, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
+			log.Println("connected")
+			if err != nil {
+				log.Fatal("dial:", err)
+				return
+			}
+			defer c.Close()
+
+			nodeID := fmt.Sprintf("node-%d", i)
+
+			hiMessage := protocol.HiMessage{Command: "HI", ID: nodeID}
+
+			writeSocket(c, &hiMessage)
+
+			_ = readSocket(c, 1)
+		}(i)
 	}
-	defer c.Close()
 
-	hiMessage := protocol.HiMessage{Command: "HI", ID: "fred"}
-
-	writeSocket(c, &hiMessage)
-
-	_ = readSocket(c, 1)
+	<-c
+	cancel()
 
 }
