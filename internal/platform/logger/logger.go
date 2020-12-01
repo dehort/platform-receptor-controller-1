@@ -111,6 +111,7 @@ func InitLogger() {
 		}
 
 		formatter := NewCloudwatchFormatter()
+		//formatter := &logrus.TextFormatter{}
 
 		Log = &logrus.Logger{
 			Out:          os.Stdout,
