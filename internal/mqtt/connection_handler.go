@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
+	//"os"
 	"strings"
 
 	MQTT "github.com/eclipse/paho.mqtt.golang"
@@ -69,7 +69,8 @@ type registerConnectionMessage struct {
 
 func NewConnectionRegistrar(connectionRegistrar controller.ConnectionRegistrar) {
 
-	broker := "ssl://localhost:8883"
+	broker := "ssl://localhost:1883"
+	//broker := "ssl://localhost:8883"
 	//broker := "tcp://localhost:1883"
 
 	startSubscriber(broker, connectionRegistrar)
@@ -88,17 +89,20 @@ func startSubscriber(broker string, connectionRegistrar controller.ConnectionReg
 
 	connOpts := MQTT.NewClientOptions()
 	connOpts.AddBroker(broker)
-	hostname, err := os.Hostname()
-	if err != nil {
-		panic("Unable to determine hostname:" + err.Error())
-	}
+	/*
+		hostname, err := os.Hostname()
+		if err != nil {
+			panic("Unable to determine hostname:" + err.Error())
+		}
+	*/
 
-	clientID := fmt.Sprintf("connection-subscriber-%s", hostname)
+	//clientID := fmt.Sprintf("connection-subscriber-%s", hostname)
+	//clientID := "connector-service"
 
-	connOpts.SetClientID(clientID)
+	//connOpts.SetClientID(clientID)
 	//connOpts.SetCleanSession(true)
-	connOpts.SetUsername("connector")
-	connOpts.SetPassword("fred")
+	//connOpts.SetUsername("connector")
+	//connOpts.SetPassword("fred")
 	//connOpts.SetTLSConfig(&tls.Config{InsecureSkipVerify: true})
 	connOpts.SetTLSConfig(tlsconfig)
 
@@ -112,7 +116,9 @@ func startSubscriber(broker string, connectionRegistrar controller.ConnectionReg
 	recordConnection := connectionRecorder(connectionRegistrar)
 
 	connOpts.OnConnect = func(c MQTT.Client) {
-		if token := c.Subscribe(TOPIC, 0, recordConnection /*onMessageReceived*/); token.Wait() && token.Error() != nil {
+		topic := fmt.Sprintf("%s/+/in", TOPIC)
+		fmt.Println("subscribing to topic: ", topic)
+		if token := c.Subscribe(topic, 0, recordConnection /*onMessageReceived*/); token.Wait() && token.Error() != nil {
 			panic(token.Error())
 		}
 	}
@@ -129,7 +135,7 @@ func connectionRecorder(connectionRegistrar controller.ConnectionRegistrar) func
 		fmt.Printf("Received message on topic: %s\nMessage: %s\n", message.Topic(), message.Payload())
 
 		//verify the MQTT topic
-		err := verifyTopic(message.Topic())
+		clientIDFromTopic, err := verifyTopic(message.Topic())
 		if err != nil {
 			log.Println(err)
 			return
@@ -143,6 +149,11 @@ func connectionRecorder(connectionRegistrar controller.ConnectionRegistrar) func
 		}
 
 		fmt.Println("Got a connection:", conn)
+
+		if clientIDFromTopic != conn.ClientID {
+			fmt.Println("Potentially malicious connection attempt")
+			return
+		}
 
 		proxy := ReceptorMQTTProxy{ClientID: conn.ClientID, Client: client}
 
@@ -161,7 +172,7 @@ func onMessageReceived(client MQTT.Client, message MQTT.Message) {
 	fmt.Printf("Received message on topic: %s\nMessage: %s\n", message.Topic(), message.Payload())
 
 	//verify the MQTT topic
-	err := verifyTopic(message.Topic())
+	_, err := verifyTopic(message.Topic())
 	if err != nil {
 		log.Println(err)
 		return
@@ -177,15 +188,15 @@ func onMessageReceived(client MQTT.Client, message MQTT.Message) {
 	fmt.Println("Got a connection:", conn)
 }
 
-func verifyTopic(topic string) error {
+func verifyTopic(topic string) (string, error) {
 	items := strings.Split(topic, "/")
-	if len(items) != 2 {
-		return errors.New("MQTT topic requires 2 sections: redhat, insights")
+	if len(items) != 4 {
+		return "", errors.New("MQTT topic requires 4 sections: redhat, insights, <clientID>, in")
 	}
 
-	if items[0] != "redhat" || items[1] != "insights" {
-		return errors.New("MQTT topic needs to be redhat/insights")
+	if items[0] != "redhat" || items[1] != "insights" || items[3] != "in" {
+		return "", errors.New("MQTT topic needs to be redhat/insights/<clientID>/in")
 	}
 
-	return nil
+	return items[2], nil
 }

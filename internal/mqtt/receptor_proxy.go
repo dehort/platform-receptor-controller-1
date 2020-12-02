@@ -22,7 +22,7 @@ func (rhp *ReceptorMQTTProxy) SendMessage(ctx context.Context, accountNumber str
 
 	fmt.Println("Sending message to connected client")
 
-	topic := fmt.Sprintf("redhat/insights/out/%s", rhp.ClientID)
+	topic := fmt.Sprintf("redhat/insights/%s/out", rhp.ClientID)
 
 	fmt.Println("topic: ", topic)
 
