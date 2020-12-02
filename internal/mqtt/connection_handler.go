@@ -84,32 +84,13 @@ func startSubscriber(broker string, connectionRegistrar controller.ConnectionReg
 
 	tlsconfig := NewTLSConfig()
 
-	//server := "tcp://192.168.68.127:1883"
-	//server := "tcp://127.0.0.1:1883"
-
 	connOpts := MQTT.NewClientOptions()
 	connOpts.AddBroker(broker)
-	/*
-		hostname, err := os.Hostname()
-		if err != nil {
-			panic("Unable to determine hostname:" + err.Error())
-		}
-	*/
 
-	//clientID := fmt.Sprintf("connection-subscriber-%s", hostname)
-	//clientID := "connector-service"
-
-	//connOpts.SetClientID(clientID)
-	//connOpts.SetCleanSession(true)
-	//connOpts.SetUsername("connector")
-	//connOpts.SetPassword("fred")
-	//connOpts.SetTLSConfig(&tls.Config{InsecureSkipVerify: true})
 	connOpts.SetTLSConfig(tlsconfig)
 
 	//lastWill := fmt.Sprintf("{'client': '%s'}", clientID)
 	//connOpts.SetWill(ACCOUNT_TOPIC+"/leaving", lastWill, 0, false)
-
-	//HOST_TOPIC := fmt.Sprintf("%s/%d", ACCOUNT_TOPIC, i)
 
 	connOpts.SetDefaultPublishHandler(m)
 
@@ -118,7 +99,7 @@ func startSubscriber(broker string, connectionRegistrar controller.ConnectionReg
 	connOpts.OnConnect = func(c MQTT.Client) {
 		topic := fmt.Sprintf("%s/+/in", TOPIC)
 		fmt.Println("subscribing to topic: ", topic)
-		if token := c.Subscribe(topic, 0, recordConnection /*onMessageReceived*/); token.Wait() && token.Error() != nil {
+		if token := c.Subscribe(topic, 0, recordConnection); token.Wait() && token.Error() != nil {
 			panic(token.Error())
 		}
 	}
@@ -155,37 +136,25 @@ func connectionRecorder(connectionRegistrar controller.ConnectionRegistrar) func
 			return
 		}
 
+		account, err := getAccountNumberFromBop(conn.ClientID)
+
+		if err != nil {
+			fmt.Println("Couldn't determine account number...ignoring connection")
+			// FIXME: Disconnect client??  How??
+			return
+		}
+
 		proxy := ReceptorMQTTProxy{ClientID: conn.ClientID, Client: client}
-
-		// FIXME: need to lookup the account number for the connected client
-		fmt.Println("FIXME: looking up the connection's account number in BOP")
-
-		account := "010101"
 
 		connectionRegistrar.Register(context.Background(), account, conn.ClientID, &proxy)
 		// FIXME: check for error, but ignore duplicate registration errors
 	}
 }
 
-// onMessageReceived is triggered by subscription on MQTTTopic (default #)
-func onMessageReceived(client MQTT.Client, message MQTT.Message) {
-	fmt.Printf("Received message on topic: %s\nMessage: %s\n", message.Topic(), message.Payload())
-
-	//verify the MQTT topic
-	_, err := verifyTopic(message.Topic())
-	if err != nil {
-		log.Println(err)
-		return
-	}
-
-	var conn registerConnectionMessage
-
-	if err := json.Unmarshal(message.Payload(), &conn); err != nil {
-		fmt.Println("unmarshal of message failed, err:", err)
-		panic(err)
-	}
-
-	fmt.Println("Got a connection:", conn)
+func getAccountNumberFromBop(clientID string) (string, error) {
+	// FIXME: need to lookup the account number for the connected client
+	fmt.Println("FIXME: looking up the connection's account number in BOP")
+	return "010101", nil
 }
 
 func verifyTopic(topic string) (string, error) {
