@@ -148,7 +148,7 @@ func startProducer(certFile string, keyFile string, broker string, i int) {
 	*/
 
 	connMsg := Connector.ConnectorMessage{
-		MessageType: "handshake",
+		MessageType: "host_handshake",
 		MessageID:   "1234",
 		ClientID:    clientID,
 		Version:     1,

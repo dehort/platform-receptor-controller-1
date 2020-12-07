@@ -133,8 +133,10 @@ func messageHandler(connectionRegistrar controller.ConnectionRegistrar) func(MQT
 		}
 
 		switch connMsg.MessageType {
-		case "handshake":
-			handleHandshake(client, connMsg, connectionRegistrar)
+		case "host_handshake":
+			handleHostHandshake(client, connMsg, connectionRegistrar)
+		case "proxy_handshake":
+			handleProxyHandshake(client, connMsg, connectionRegistrar)
 		case "disconnect":
 			handleDisconnect(client, connMsg, connectionRegistrar)
 		case "processing_error":
@@ -145,25 +147,25 @@ func messageHandler(connectionRegistrar controller.ConnectionRegistrar) func(MQT
 	}
 }
 
-func handleHandshake(client MQTT.Client, connMsg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
+func handleHandshake(client MQTT.Client, connMsg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) (string, error) {
 
 	account, err := getAccountNumberFromBop(connMsg.ClientID)
 
 	if err != nil {
-		fmt.Println("Couldn't determine account number...ignoring connection")
-		// FIXME: Disconnect client??  How??
-		return
+		return "", err
 	}
 
 	proxy := ReceptorMQTTProxy{ClientID: connMsg.ClientID, Client: client}
 
 	connectionRegistrar.Register(context.Background(), account, connMsg.ClientID, &proxy)
 	// FIXME: check for error, but ignore duplicate registration errors
+
+	return account, nil
 }
 
-func handleDisconnect(client MQTT.Client, connMsg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
+func handleHostHandshake(client MQTT.Client, msg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
 
-	account, err := getAccountNumberFromBop(connMsg.ClientID)
+	account, err := handleHandshake(client, msg, connectionRegistrar)
 
 	if err != nil {
 		fmt.Println("Couldn't determine account number...ignoring connection")
@@ -171,7 +173,35 @@ func handleDisconnect(client MQTT.Client, connMsg ConnectorMessage, connectionRe
 		return
 	}
 
-	connectionRegistrar.Unregister(context.Background(), account, connMsg.ClientID)
+	registerConnectionInInventory(account, msg.ClientID, msg.Payload)
+
+	connectionEvent(account, msg.ClientID, msg.Payload)
+}
+
+func handleProxyHandshake(client MQTT.Client, msg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
+	account, err := handleHandshake(client, msg, connectionRegistrar)
+	if err != nil {
+		fmt.Println("Couldn't determine account number...ignoring connection")
+		// FIXME: Disconnect client??  How??
+		return
+	}
+
+	connectionEvent(account, msg.ClientID, msg.Payload)
+}
+
+func handleDisconnect(client MQTT.Client, msg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
+
+	account, err := getAccountNumberFromBop(msg.ClientID)
+
+	if err != nil {
+		fmt.Println("Couldn't determine account number...ignoring connection")
+		// FIXME: Disconnect client??  How??
+		return
+	}
+
+	connectionRegistrar.Unregister(context.Background(), account, msg.ClientID)
+
+	disconnectionEvent(account, msg.ClientID)
 }
 
 func handleProcessingError(connMsg ConnectorMessage) {
@@ -195,4 +225,16 @@ func verifyTopic(topic string) (string, error) {
 	}
 
 	return items[2], nil
+}
+
+func registerConnectionInInventory(account string, clientID string, canonicalFacts interface{}) {
+	fmt.Println("FIXME: send inventory kafka message - ", account, clientID, canonicalFacts)
+}
+
+func connectionEvent(account string, clientID string, canonicalFacts interface{}) {
+	fmt.Println("FIXME: send new connection kafka message")
+}
+
+func disconnectionEvent(account string, clientID string) {
+	fmt.Println("FIXME: send lost connection kafka message")
 }
