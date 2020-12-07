@@ -2,6 +2,7 @@ package mqtt
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -20,24 +21,33 @@ type ReceptorMQTTProxy struct {
 
 func (rhp *ReceptorMQTTProxy) SendMessage(ctx context.Context, accountNumber string, recipient string, route []string, payload interface{}, directive string) (*uuid.UUID, error) {
 
-	fmt.Println("Sending message to connected client")
-
-	topic := fmt.Sprintf("redhat/insights/%s/out", rhp.ClientID)
-
-	fmt.Println("topic: ", topic)
-
-	t := rhp.Client.Publish(topic, byte(0), false, payload)
-	go func() {
-		_ = t.Wait() // Can also use '<-t.Done()' in releases > 1.2.0
-		if t.Error() != nil {
-			fmt.Println("public error:", t.Error()) // Use your preferred logging technique (or just fmt.Printf)
-		}
-	}()
-
 	messageID, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println("Sending message to connected client")
+
+	topic := fmt.Sprintf("redhat/insights/%s/out", rhp.ClientID)
+	fmt.Println("topic: ", topic)
+
+	message := ConnectorMessage{
+		MessageType: "work",
+		MessageID:   messageID.String(),
+		ClientID:    rhp.ClientID,
+		Version:     1,
+		Payload:     payload,
+	}
+
+	messageBytes, err := json.Marshal(message)
+
+	t := rhp.Client.Publish(topic, byte(0), false, messageBytes)
+	go func() {
+		_ = t.Wait() // Can also use '<-t.Done()' in releases > 1.2.0
+		if t.Error() != nil {
+			fmt.Println("public error:", t.Error())
+		}
+	}()
 
 	return &messageID, nil
 }

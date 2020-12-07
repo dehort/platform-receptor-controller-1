@@ -63,13 +63,9 @@ func NewTLSConfig() *tls.Config {
 	}
 }
 
-type registerConnectionMessage struct {
-	ClientID string `json:"id" validate:"required"`
-}
-
 func NewConnectionRegistrar(connectionRegistrar controller.ConnectionRegistrar) {
 
-	broker := "ssl://localhost:1883"
+	broker := "ssl://localhost:8883"
 	//broker := "ssl://localhost:8883"
 	//broker := "tcp://localhost:1883"
 
@@ -94,7 +90,7 @@ func startSubscriber(broker string, connectionRegistrar controller.ConnectionReg
 
 	connOpts.SetDefaultPublishHandler(m)
 
-	recordConnection := connectionRecorder(connectionRegistrar)
+	recordConnection := messageHandler(connectionRegistrar)
 
 	connOpts.OnConnect = func(c MQTT.Client) {
 		topic := fmt.Sprintf("%s/+/in", TOPIC)
@@ -111,7 +107,7 @@ func startSubscriber(broker string, connectionRegistrar controller.ConnectionReg
 	fmt.Println("Connected to broker", broker)
 }
 
-func connectionRecorder(connectionRegistrar controller.ConnectionRegistrar) func(MQTT.Client, MQTT.Message) {
+func messageHandler(connectionRegistrar controller.ConnectionRegistrar) func(MQTT.Client, MQTT.Message) {
 	return func(client MQTT.Client, message MQTT.Message) {
 		fmt.Printf("Received message on topic: %s\nMessage: %s\n", message.Topic(), message.Payload())
 
@@ -122,33 +118,64 @@ func connectionRecorder(connectionRegistrar controller.ConnectionRegistrar) func
 			return
 		}
 
-		var conn registerConnectionMessage
+		var connMsg ConnectorMessage
 
-		if err := json.Unmarshal(message.Payload(), &conn); err != nil {
+		if err := json.Unmarshal(message.Payload(), &connMsg); err != nil {
 			fmt.Println("unmarshal of message failed, err:", err)
 			panic(err)
 		}
 
-		fmt.Println("Got a connection:", conn)
+		fmt.Println("Got a connection:", connMsg)
 
-		if clientIDFromTopic != conn.ClientID {
+		if clientIDFromTopic != connMsg.ClientID {
 			fmt.Println("Potentially malicious connection attempt")
 			return
 		}
 
-		account, err := getAccountNumberFromBop(conn.ClientID)
-
-		if err != nil {
-			fmt.Println("Couldn't determine account number...ignoring connection")
-			// FIXME: Disconnect client??  How??
-			return
+		switch connMsg.MessageType {
+		case "handshake":
+			handleHandshake(client, connMsg, connectionRegistrar)
+		case "disconnect":
+			handleDisconnect(client, connMsg, connectionRegistrar)
+		case "processing_error":
+			handleProcessingError(connMsg)
+		default:
+			fmt.Println("Invalid message type!")
 		}
-
-		proxy := ReceptorMQTTProxy{ClientID: conn.ClientID, Client: client}
-
-		connectionRegistrar.Register(context.Background(), account, conn.ClientID, &proxy)
-		// FIXME: check for error, but ignore duplicate registration errors
 	}
+}
+
+func handleHandshake(client MQTT.Client, connMsg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
+
+	account, err := getAccountNumberFromBop(connMsg.ClientID)
+
+	if err != nil {
+		fmt.Println("Couldn't determine account number...ignoring connection")
+		// FIXME: Disconnect client??  How??
+		return
+	}
+
+	proxy := ReceptorMQTTProxy{ClientID: connMsg.ClientID, Client: client}
+
+	connectionRegistrar.Register(context.Background(), account, connMsg.ClientID, &proxy)
+	// FIXME: check for error, but ignore duplicate registration errors
+}
+
+func handleDisconnect(client MQTT.Client, connMsg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
+
+	account, err := getAccountNumberFromBop(connMsg.ClientID)
+
+	if err != nil {
+		fmt.Println("Couldn't determine account number...ignoring connection")
+		// FIXME: Disconnect client??  How??
+		return
+	}
+
+	connectionRegistrar.Unregister(context.Background(), account, connMsg.ClientID)
+}
+
+func handleProcessingError(connMsg ConnectorMessage) {
+	fmt.Println("PROCESSING ERROR")
 }
 
 func getAccountNumberFromBop(clientID string) (string, error) {

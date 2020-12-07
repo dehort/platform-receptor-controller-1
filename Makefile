@@ -15,6 +15,7 @@ build:
 	go build -o connection_util cmd/connection_util/main.go
 	go build -o connection_cleaner cmd/connection_cleaner/main.go
 	go build -o connector_service cmd/connector_service/main.go
+	go build -o bunnies_client cmd/bunnies_client/main.go
 
 deps:
 	go get -u golang.org/x/lint/golint
