@@ -26,27 +26,3 @@ services:
     image: redis
     ports:
       - 6379:6379
-  gateway:
-    build:
-      context: ./
-      dockerfile: ./cmd/gateway/Dockerfile
-    image: platform-receptor-controller-gateway
-    command: ./ws-gateway -wsAddr gateway:8888
-    ports:
-      - 8888:8888 # websocket gateway
-      - 9090:9090 # gateway management server
-    environment:
-      - RECEPTOR_CONTROLLER_LOG_LEVEL=debug
-    depends_on:
-      - kafka
-  job-receiver:
-    build:
-      context: ./
-      dockerfile: ./cmd/job_receiver/Dockerfile
-    image: platform-receptor-controller-job-receiver
-    ports:
-      - 8081:8081 # job_receiver management server
-    environment:
-      - PLACEHOLDER_ENV_VAR=placeholder_env_var
-    depends_on:
-      - kafka

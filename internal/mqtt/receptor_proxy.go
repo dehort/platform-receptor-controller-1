@@ -34,7 +34,7 @@ func (rhp *ReceptorMQTTProxy) SendMessage(ctx context.Context, accountNumber str
 	message := ConnectorMessage{
 		MessageType: "work",
 		MessageID:   messageID.String(),
-		ClientID:    rhp.ClientID,
+		ClientID:    "cloud-connector-2.0",
 		Version:     1,
 		Payload:     payload,
 	}

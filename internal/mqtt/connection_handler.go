@@ -133,10 +133,8 @@ func messageHandler(connectionRegistrar controller.ConnectionRegistrar) func(MQT
 		}
 
 		switch connMsg.MessageType {
-		case "host_handshake":
-			handleHostHandshake(client, connMsg, connectionRegistrar)
-		case "proxy_handshake":
-			handleProxyHandshake(client, connMsg, connectionRegistrar)
+		case "handshake":
+			handleHandshake(client, connMsg, connectionRegistrar)
 		case "disconnect":
 			handleDisconnect(client, connMsg, connectionRegistrar)
 		case "processing_error":
@@ -147,45 +145,56 @@ func messageHandler(connectionRegistrar controller.ConnectionRegistrar) func(MQT
 	}
 }
 
-func handleHandshake(client MQTT.Client, connMsg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) (string, error) {
+func handleHandshake(client MQTT.Client, msg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) error {
 
-	account, err := getAccountNumberFromBop(connMsg.ClientID)
+	account, err := getAccountNumberFromBop(msg.ClientID)
 
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	proxy := ReceptorMQTTProxy{ClientID: connMsg.ClientID, Client: client}
+	handshakePayload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		// FIXME: Return an error response
+		return errors.New("Unable to parse payload")
+	}
 
-	connectionRegistrar.Register(context.Background(), account, connMsg.ClientID, &proxy)
+	handshakeType := handshakePayload["type"]
+
+	if handshakeType == "host" {
+		handleHostHandshake(client, msg, account, connectionRegistrar)
+	} else if handshakeType == "proxy" {
+		handleProxyHandshake(client, msg, account, connectionRegistrar)
+	} else {
+		// FIXME: Return an error response
+		return errors.New("Invalid handshake payload type")
+	}
+
+	proxy := ReceptorMQTTProxy{ClientID: msg.ClientID, Client: client}
+
+	connectionRegistrar.Register(context.Background(), account, msg.ClientID, &proxy)
 	// FIXME: check for error, but ignore duplicate registration errors
 
-	return account, nil
+	return nil
 }
 
-func handleHostHandshake(client MQTT.Client, msg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
+func handleHostHandshake(client MQTT.Client, msg ConnectorMessage, account string, connectionRegistrar controller.ConnectionRegistrar) {
 
-	account, err := handleHandshake(client, msg, connectionRegistrar)
+	handshakePayload := msg.Payload.(map[string]interface{})
 
-	if err != nil {
-		fmt.Println("Couldn't determine account number...ignoring connection")
-		// FIXME: Disconnect client??  How??
+	canonicalFacts, gotCanonicalFacts := handshakePayload["canonical_facts"]
+
+	if gotCanonicalFacts == false {
+		fmt.Println("FIXME: error!  hangup")
 		return
 	}
 
-	registerConnectionInInventory(account, msg.ClientID, msg.Payload)
+	registerConnectionInInventory(account, msg.ClientID, canonicalFacts)
 
 	connectionEvent(account, msg.ClientID, msg.Payload)
 }
 
-func handleProxyHandshake(client MQTT.Client, msg ConnectorMessage, connectionRegistrar controller.ConnectionRegistrar) {
-	account, err := handleHandshake(client, msg, connectionRegistrar)
-	if err != nil {
-		fmt.Println("Couldn't determine account number...ignoring connection")
-		// FIXME: Disconnect client??  How??
-		return
-	}
-
+func handleProxyHandshake(client MQTT.Client, msg ConnectorMessage, account string, connectionRegistrar controller.ConnectionRegistrar) {
 	connectionEvent(account, msg.ClientID, msg.Payload)
 }
 

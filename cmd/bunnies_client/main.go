@@ -147,11 +147,18 @@ func startProducer(certFile string, keyFile string, broker string, i int) {
 	   payload = spoofPayload
 	*/
 
+	cf := Connector.CanonicalFacts{
+		"1234",
+		"5678",
+	}
+	handshakePayload := Connector.HostHandshake{Type: "host", CanonicalFacts: cf}
+
 	connMsg := Connector.ConnectorMessage{
-		MessageType: "host_handshake",
+		MessageType: "handshake",
 		MessageID:   "1234",
 		ClientID:    clientID,
 		Version:     1,
+		Payload:     handshakePayload,
 	}
 
 	payload, err := json.Marshal(connMsg)
