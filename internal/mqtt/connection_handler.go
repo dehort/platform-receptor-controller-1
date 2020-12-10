@@ -18,7 +18,7 @@ import (
 
 const TOPIC = "redhat/insights"
 
-func NewTLSConfig() *tls.Config {
+func NewTLSConfig(certFilePath string, keyFilePath string) *tls.Config {
 	// Import trusted certificates from CAfile.pem.
 	// Alternatively, manually add CA certificates to
 	// default openssl CA bundle.
@@ -31,7 +31,7 @@ func NewTLSConfig() *tls.Config {
 	*/
 
 	// Import client certificate/key pair
-	cert, err := tls.LoadX509KeyPair("connector-service-cert.pem", "connector-service-key.pem")
+	cert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
 	if err != nil {
 		panic(err)
 	}
@@ -63,25 +63,21 @@ func NewTLSConfig() *tls.Config {
 	}
 }
 
-func NewConnectionRegistrar(connectionRegistrar controller.ConnectionRegistrar) {
+func NewConnectionRegistrar(brokerUri string, certFilePath string, certKeyPath string, connectionRegistrar controller.ConnectionRegistrar) {
 
-	broker := "ssl://localhost:8883"
-	//broker := "ssl://localhost:8883"
-	//broker := "tcp://localhost:1883"
-
-	startSubscriber(broker, connectionRegistrar)
+	startSubscriber(brokerUri, certFilePath, certKeyPath, connectionRegistrar)
 }
 
 var m MQTT.MessageHandler = func(client MQTT.Client, msg MQTT.Message) {
 	fmt.Printf("rec TOPIC: %s MSG:%s\n", msg.Topic(), msg.Payload())
 }
 
-func startSubscriber(broker string, connectionRegistrar controller.ConnectionRegistrar) {
+func startSubscriber(brokerUri string, certFilePath string, keyFilePath string, connectionRegistrar controller.ConnectionRegistrar) {
 
-	tlsconfig := NewTLSConfig()
+	tlsconfig := NewTLSConfig(certFilePath, keyFilePath)
 
 	connOpts := MQTT.NewClientOptions()
-	connOpts.AddBroker(broker)
+	connOpts.AddBroker(brokerUri)
 
 	connOpts.SetTLSConfig(tlsconfig)
 
@@ -104,7 +100,7 @@ func startSubscriber(broker string, connectionRegistrar controller.ConnectionReg
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
 		panic(token.Error())
 	}
-	fmt.Println("Connected to broker", broker)
+	fmt.Println("Connected to broker", brokerUri)
 }
 
 func messageHandler(connectionRegistrar controller.ConnectionRegistrar) func(MQTT.Client, MQTT.Message) {
