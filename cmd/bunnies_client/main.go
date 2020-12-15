@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
 	//"log"
+	"bufio"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -176,6 +179,80 @@ func startProducer(certFile string, keyFile string, broker string, i int) {
 
 func onMessageReceived(client MQTT.Client, message MQTT.Message) {
 	fmt.Printf("Received message on topic: %s\nMessage: %s\n", message.Topic(), message.Payload())
+
+	var connMsg Connector.ConnectorMessage
+
+	if err := json.Unmarshal(message.Payload(), &connMsg); err != nil {
+		fmt.Println("unmarshal of message failed, err:", err)
+		panic(err)
+	}
+
+	fmt.Println("Got a message:", connMsg)
+
+	switch connMsg.MessageType {
+	case "work":
+		fmt.Println("payload: ", connMsg.Payload)
+		fmt.Printf("type(payload): %T", connMsg.Payload)
+
+		payloadBytes := []byte(connMsg.Payload.(string))
+		var workPayload map[string]interface{}
+		if err := json.Unmarshal(payloadBytes, &workPayload); err != nil {
+			fmt.Println("FIXME: Unable to parse work payload")
+			return
+		}
+
+		handler := workPayload["handler"].(string)
+		payload_url := workPayload["payload_url"].(string)
+		return_url := workPayload["return_url"].(string)
+
+		fmt.Println("handler:", handler)
+		fmt.Println("payload_url:", payload_url)
+		fmt.Println("return_url:", return_url)
+
+		// FIXME:  WHAT ABOUT MESSAGE_ID???
+		resp, err := http.Get(payload_url)
+		if err != nil {
+			fmt.Println("ERROR downloading playbook: ", err)
+			return
+		}
+
+		scanner := bufio.NewScanner(resp.Body)
+		fmt.Println("---------- BEGIN PLAYBOOK -----------")
+		for i := 0; scanner.Scan() && i < 5; i++ {
+			fmt.Println(scanner.Text())
+		}
+		fmt.Println("---------- END PLAYBOOK -----------")
+		if err := scanner.Err(); err != nil {
+			panic(err)
+		}
+
+		fmt.Println("Running playbook...")
+		time.Sleep(1 * time.Second)
+		fmt.Println("playbook finsihed...")
+
+		outputBody, err := json.Marshal(map[string]string{
+			"output": "Run was a success!",
+		})
+
+		fmt.Println("Uploading output...")
+
+		client := &http.Client{}
+		req, err := http.NewRequest("POST", return_url, bytes.NewBuffer(outputBody))
+		req.Header.Add("message_id", connMsg.MessageID)
+		req.Header.Add("Content-Type", "application/json")
+		resp, err = client.Do(req)
+
+		if err != nil {
+			fmt.Println("ERROR sending output back to cloud.redhat.com: ", err)
+			return
+		}
+		fmt.Println("output uploaded...")
+
+		defer resp.Body.Close()
+
+	default:
+		fmt.Println("Invalid message type!")
+	}
 }
 
 func buildDisconnectMessage(clientID string) ([]byte, error) {
